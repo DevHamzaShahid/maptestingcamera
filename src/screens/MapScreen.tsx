@@ -1,13 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+import { StyleSheet, View, TouchableOpacity, Text, Modal } from 'react-native';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useDeviceHeading } from '../hooks/useDeviceHeading';
 import { useMapCamera } from '../hooks/useMapCamera';
 import FOVCone from '../components/FOVCone';
+import { getRouteDirections, ParkingLocation } from '../utils/navigation';
 
-// Dummy car parking locations in Johar Town, Lahore
-const PARKINGS = [
+const PARKINGS: ParkingLocation[] = [
   { id: 1, name: 'Emporium Mall Parking', lat: 31.4679, lng: 74.2705, capacity: 200 },
   { id: 2, name: 'Expo Center Parking', lat: 31.4692, lng: 74.2731, capacity: 150 },
   { id: 3, name: 'Johar Town Market Parking', lat: 31.4665, lng: 74.2720, capacity: 80 },
@@ -32,9 +32,12 @@ function MapScreen() {
     recenter,
     stopFollowing,
   } = useMapCamera();
-  const [selectedParking, setSelectedParking] = useState<number | null>(null);
+  const [selectedParking, setSelectedParking] = useState<ParkingLocation | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [navigating, setNavigating] = useState(false);
+  const [visited, setVisited] = useState<number[]>([]);
 
-  // Center map on user location and rotate camera
+  // Camera follow and rotation
   useEffect(() => {
     if (location && isFollowing) {
       animateToCamera({
@@ -54,6 +57,44 @@ function MapScreen() {
   const handleRegionChange = () => {
     if (isFollowing) stopFollowing();
   };
+
+  // Start navigation to selected parking
+  const startNavigation = async (parking: ParkingLocation) => {
+    if (!location) return;
+    setNavigating(true);
+    setSelectedParking(parking);
+    const route = await getRouteDirections(
+      { latitude: location.latitude, longitude: location.longitude },
+      { latitude: parking.lat, longitude: parking.lng }
+    );
+    setRouteCoords(route);
+  };
+
+  // On arrival, mark as visited and auto-target next nearest
+  useEffect(() => {
+    if (!navigating || !selectedParking || !location) return;
+    const dist = Math.sqrt(
+      Math.pow(location.latitude - selectedParking.lat, 2) +
+      Math.pow(location.longitude - selectedParking.lng, 2)
+    );
+    if (dist < 0.0003) { // ~30m
+      setVisited((v) => [...v, selectedParking.id]);
+      setNavigating(false);
+      setRouteCoords([]);
+      // Auto-target next nearest
+      const remaining = PARKINGS.filter(p => !visited.includes(p.id) && p.id !== selectedParking.id);
+      if (remaining.length > 0) {
+        const next = remaining.reduce((a, b) => {
+          const da = Math.pow(a.lat - location.latitude, 2) + Math.pow(a.lng - location.longitude, 2);
+          const db = Math.pow(b.lat - location.latitude, 2) + Math.pow(b.lng - location.longitude, 2);
+          return da < db ? a : b;
+        });
+        startNavigation(next);
+      } else {
+        setSelectedParking(null);
+      }
+    }
+  }, [location, navigating, selectedParking, visited]);
 
   // Render FOV cone at user location
   const renderFOVCone = () => {
@@ -79,8 +120,8 @@ function MapScreen() {
         coordinate={{ latitude: p.lat, longitude: p.lng }}
         title={p.name}
         description={`Capacity: ${p.capacity}`}
-        onPress={() => setSelectedParking(p.id)}
-        pinColor={selectedParking === p.id ? '#FF9800' : '#1976D2'}
+        onPress={() => setSelectedParking(p)}
+        pinColor={visited.includes(p.id) ? '#BDBDBD' : '#1976D2'}
       />
     ));
 
@@ -103,6 +144,27 @@ function MapScreen() {
     </TouchableOpacity>
   );
 
+  // Parking details modal
+  const renderParkingModal = () => (
+    <Modal visible={!!selectedParking && !navigating} transparent animationType="slide">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{selectedParking?.name}</Text>
+          <Text>Capacity: {selectedParking?.capacity}</Text>
+          <TouchableOpacity
+            style={styles.navigateBtn}
+            onPress={() => selectedParking && startNavigation(selectedParking)}
+          >
+            <Text style={styles.navigateText}>Navigate</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setSelectedParking(null)}>
+            <Text style={{ color: '#888', marginTop: 12 }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <View style={styles.container}>
       <MapView
@@ -122,48 +184,44 @@ function MapScreen() {
       >
         {renderFOVCone()}
         {renderParkings()}
+        {routeCoords.length > 1 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeColor="#4285F4"
+            strokeWidth={5}
+          />
+        )}
       </MapView>
       {renderRecenterButton()}
+      {renderParkingModal()}
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   recenterBtn: {
-    position: 'absolute',
-    bottom: 32,
-    right: 24,
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    position: 'absolute', bottom: 32, right: 24, backgroundColor: '#fff', borderRadius: 24,
+    paddingVertical: 10, paddingHorizontal: 18, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1,
+    shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
-  recenterText: {
-    color: '#4285F4',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  recenterText: { color: '#4285F4', fontWeight: 'bold', fontSize: 16 },
   error: {
-    position: 'absolute',
-    top: 40,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    color: 'red',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    padding: 6,
-    borderRadius: 8,
-    marginHorizontal: 24,
+    position: 'absolute', top: 40, left: 0, right: 0, textAlign: 'center', color: 'red',
+    backgroundColor: 'rgba(255,255,255,0.8)', padding: 6, borderRadius: 8, marginHorizontal: 24,
   },
+  modalContainer: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 24, minWidth: 260, alignItems: 'center',
+  },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  navigateBtn: {
+    marginTop: 18, backgroundColor: '#4285F4', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24,
+  },
+  navigateText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
 
 export default MapScreen;
