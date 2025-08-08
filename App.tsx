@@ -1,26 +1,5 @@
-import {
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import MapScreen from './src/screens/MapScreen';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <Text>test project</Text>
-    </View>
-  );
+export default function App() {
+  return <MapScreen />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;
