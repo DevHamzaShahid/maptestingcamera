@@ -1,48 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import MapView, { Marker, Polyline, Region, PROVIDER_GOOGLE } from 'react-native-maps';
-import { StatusBar, StyleSheet, useColorScheme, View, TouchableOpacity, Text } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useDeviceHeading } from '../hooks/useDeviceHeading';
 import { useMapCamera } from '../hooks/useMapCamera';
 import FOVCone from '../components/FOVCone';
 
-// 10 realistic restaurant locations in Johar Town, Lahore
-const RESTAURANTS = [
-  { id: 1, name: 'Salt Bae Grill', lat: 31.4678, lng: 74.2701, type: 'BBQ', description: 'Famous for steaks.' },
-  { id: 2, name: 'Bundu Khan', lat: 31.4685, lng: 74.2732, type: 'Pakistani', description: 'Traditional cuisine.' },
-  { id: 3, name: 'Johnny & Jugnu', lat: 31.4659, lng: 74.2715, type: 'Fast Food', description: 'Burgers & wraps.' },
-  { id: 4, name: 'Arcadian Cafe', lat: 31.4702, lng: 74.2729, type: 'Continental', description: 'Modern dining.' },
-  { id: 5, name: 'Howdy', lat: 31.4667, lng: 74.2751, type: 'Steakhouse', description: 'Western grill.' },
-  { id: 6, name: 'Nando’s', lat: 31.4691, lng: 74.2698, type: 'Peri Peri', description: 'Chicken specialists.' },
-  { id: 7, name: 'Cafe Barbera', lat: 31.4682, lng: 74.2745, type: 'Cafe', description: 'Italian coffee.' },
-  { id: 8, name: 'Pizza Hut', lat: 31.4671, lng: 74.2737, type: 'Pizza', description: 'Global chain.' },
-  { id: 9, name: 'Qabail', lat: 31.4662, lng: 74.2709, type: 'Afghani', description: 'Afghan cuisine.' },
-  { id: 10, name: 'The Rice Bowl', lat: 31.4700, lng: 74.2712, type: 'Chinese', description: 'Asian fusion.' },
+// Dummy car parking locations in Johar Town, Lahore
+const PARKINGS = [
+  { id: 1, name: 'Emporium Mall Parking', lat: 31.4679, lng: 74.2705, capacity: 200 },
+  { id: 2, name: 'Expo Center Parking', lat: 31.4692, lng: 74.2731, capacity: 150 },
+  { id: 3, name: 'Johar Town Market Parking', lat: 31.4665, lng: 74.2720, capacity: 80 },
+  { id: 4, name: 'Canal Road Parking', lat: 31.4687, lng: 74.2692, capacity: 60 },
+  { id: 5, name: 'Shaukat Khanum Parking', lat: 31.4701, lng: 74.2717, capacity: 120 },
 ];
 
+const initialRegion = {
+  latitude: 31.4674,
+  longitude: 74.2728,
+  latitudeDelta: 0.01,
+  longitudeDelta: 0.01,
+};
+
 function MapScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
   const { location, error } = useUserLocation();
   const heading = useDeviceHeading(true);
   const {
     mapRef,
     isFollowing,
-    animateToLocation,
     animateToCamera,
     recenter,
     stopFollowing,
   } = useMapCamera();
-  const [selectedRestaurant, setSelectedRestaurant] = useState<number | null>(null);
+  const [selectedParking, setSelectedParking] = useState<number | null>(null);
 
-  // Initial region fallback
-  const initialRegion = useMemo(() => ({
-    latitude: 31.4674,
-    longitude: 74.2728,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  }), []);
-
-  // Center map on user location when available and following
+  // Center map on user location and rotate camera
   useEffect(() => {
     if (location && isFollowing) {
       animateToCamera({
@@ -79,16 +71,16 @@ function MapScreen() {
     );
   };
 
-  // Render restaurant markers
-  const renderRestaurants = () =>
-    RESTAURANTS.map((r) => (
+  // Render parking markers
+  const renderParkings = () =>
+    PARKINGS.map((p) => (
       <Marker
-        key={r.id}
-        coordinate={{ latitude: r.lat, longitude: r.lng }}
-        title={r.name}
-        description={r.description}
-        onPress={() => setSelectedRestaurant(r.id)}
-        pinColor={selectedRestaurant === r.id ? '#FF5722' : '#2E7D32'}
+        key={p.id}
+        coordinate={{ latitude: p.lat, longitude: p.lng }}
+        title={p.name}
+        description={`Capacity: ${p.capacity}`}
+        onPress={() => setSelectedParking(p.id)}
+        pinColor={selectedParking === p.id ? '#FF9800' : '#1976D2'}
       />
     ));
 
@@ -113,7 +105,6 @@ function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
@@ -130,7 +121,7 @@ function MapScreen() {
         maxZoomLevel={20}
       >
         {renderFOVCone()}
-        {renderRestaurants()}
+        {renderParkings()}
       </MapView>
       {renderRecenterButton()}
       {error && <Text style={styles.error}>{error}</Text>}
