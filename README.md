@@ -95,3 +95,17 @@ To learn more about React Native, take a look at the following resources:
 - [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+
+## Maps Setup
+
+- Add your Google Maps API key in:
+  - Android: `android/app/src/main/AndroidManifest.xml` inside the `<application>` meta-data `com.google.android.geo.API_KEY`
+  - iOS: Set `GMSServices` if using Google Maps SDK for iOS, or keep Apple Maps provider. For `react-native-maps` Google provider on iOS, follow the library docs.
+- iOS location strings are configured in `ios/maptestcamera/Info.plist`.
+
+## Run
+
+- Android: `npm run android`
+- iOS: `cd ios && pod install && cd .. && npm run ios`
+
+Notes: This demo uses `react-native-geolocation-service`, `react-native-sensors`, `react-native-maps`, and `react-native-maps-directions`. Ensure you enable location permissions on first launch.
